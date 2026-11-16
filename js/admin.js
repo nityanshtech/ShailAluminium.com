@@ -1,15 +1,14 @@
 import {
-    initializeFirebase,
-    isAdminUser,
-    isConfigured,
-    observeAuth,
-    readSiteData,
-    resetAdminPassword,
-    saveSiteDocuments,
-    signIn,
-    signOutAdmin,
-    watchPublicSiteData
-} from "./firebase.js";
+    clearAdminSession,
+    generateReport,
+    hasAdminSession,
+    isApiConfigured,
+    readAnalytics,
+    readSiteContent,
+    saveSiteContent,
+    signInAdmin,
+    signOutAdmin
+} from "./api-config.js";
 
 (() => {
 const keys = {
@@ -47,12 +46,41 @@ const keys = {
         currency: "INR",
         maximumFractionDigits: 0
     }).format(Number(value) || 0);
+    const pageTitle = path => {
+        const section = String(path || "").split("#")[1];
+        if (!section) return "Home";
+        return section.replace(/[-_]/g, " ").replace(/\b\w/g, character => character.toUpperCase());
+    };
+    const targetTitle = target => ({
+        navigation: "Section navigation",
+        whatsapp: "WhatsApp",
+        phone: "Phone calls",
+        email: "Email",
+        map: "Map directions",
+        external: "External links",
+        enquiry: "Product enquiries",
+        other: "Other links"
+    })[target] || "Other links";
+    const sourceTitle = source => ({
+        direct: "Direct / unknown",
+        google: "Google",
+        bing: "Bing",
+        yahoo: "Yahoo",
+        duckduckgo: "DuckDuckGo",
+        other: "Other websites"
+    })[source] || "Other websites";
 
     let toastTimer;
     let currentUser = null;
-    let knownCloudDocuments = new Set();
-    let stopWatchingData = null;
-    let authNotice = "";
+    let siteContent = {
+        products: [],
+        inventory: [],
+        gallery: [],
+        businessSettings: {},
+        shopTimings: {}
+    };
+    let analyticsData = null;
+    let analyticsRangeDays = 30;
     const toast = (message, isError = false) => {
         const element = $("#toast");
         element.textContent = message;
@@ -60,22 +88,6 @@ const keys = {
         element.classList.add("show");
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => element.classList.remove("show"), 3400);
-    };
-
-    const explainCloudError = error => {
-        if (error?.code === "permission-denied") {
-            return "Firebase denied this change. Publish firestore.rules to the shail-3997d project and confirm both admin UIDs match.";
-        }
-        if (error?.code === "unauthenticated") {
-            return "Your Firebase session expired. Sign in again, then retry.";
-        }
-        if (error?.code === "unavailable" || error?.code === "deadline-exceeded") {
-            return "Firebase is temporarily unreachable. Check your internet connection and retry.";
-        }
-        if (error?.code === "invalid-argument") {
-            return "Firebase rejected the data format. Refresh the dashboard and try again.";
-        }
-        return "Cloud save failed. Check the browser console for the Firebase error details.";
     };
 
     const readJson = (key, fallback) => {
@@ -110,21 +122,43 @@ const keys = {
         }
     };
 
+    const includeUnmigratedContent = content => {
+        if (localStorage.getItem("shail_content_migrated") === "true") return content;
+        const merged = { ...content };
+        Object.entries(documentIds).forEach(([storageKey, documentId]) => {
+            const saved = localStorage.getItem(storageKey);
+            const remoteValue = merged[documentId];
+            const remoteIsEmpty = (Array.isArray(remoteValue) && remoteValue.length === 0)
+                || (remoteValue && typeof remoteValue === "object" && !Array.isArray(remoteValue)
+                    && Object.keys(remoteValue).length === 0);
+            if (saved === null || !remoteIsEmpty) return;
+            try {
+                merged[documentId] = JSON.parse(saved);
+            } catch (error) {
+                console.error(`Unable to preserve invalid saved browser data for ${storageKey}.`, error);
+                toast("A saved browser section is invalid and was not included in this change.", true);
+            }
+        });
+        return merged;
+    };
+
     const writeJson = async (key, value) => {
         const documentId = documentIds[key];
         if (!documentId || !currentUser) {
-            toast("Sign in to an authorized SHAIL administrator account before saving.", true);
+            toast("Sign in to the SHAIL administrator dashboard before saving.", true);
             return false;
         }
         try {
-            await saveSiteDocuments(currentUser, { [documentId]: value });
+            const nextContent = includeUnmigratedContent({ ...siteContent, [documentId]: value });
+            const result = await saveSiteContent(nextContent);
+            siteContent = nextContent;
             if (!writeLocalJson(key, value)) return false;
-            knownCloudDocuments.add(documentId);
-            updateImportButton();
+            localStorage.setItem("shail_content_migrated", "true");
+            $("#syncStatus").textContent = result.message || "Changes saved to GitHub.";
             return true;
         } catch (error) {
-            console.error(`Unable to save ${documentId} in Firestore.`, error);
-            toast(explainCloudError(error), true);
+            console.error(`Unable to save ${documentId} through the admin service.`, error);
+            toast(error.message || "Cloud save failed. Check the dashboard service and try again.", true);
             return false;
         }
     };
@@ -145,6 +179,149 @@ const keys = {
         $("#currentSection").textContent = title;
         document.title = `${title} | SHAIL Admin`;
         window.scrollTo({ top: 0, behavior: "smooth" });
+        if (view === "analytics") loadAnalytics();
+    };
+
+    const renderAnalyticsList = (element, entries, labelFor) => {
+        element.innerHTML = entries.length
+            ? entries.map(entry => `
+                <div class="analytics-list-row">
+                    <span>${escapeHtml(labelFor(entry.key))}</span><strong>${Number(entry.count).toLocaleString("en-IN")}</strong>
+                </div>`).join("")
+            : `<p class="muted-empty">No data recorded in this period yet.</p>`;
+    };
+
+    const drawTrafficChart = daily => {
+        const canvas = $("#trafficChart");
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        const width = Math.max(300, canvas.clientWidth);
+        const height = 260;
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = width * ratio;
+        canvas.height = height * ratio;
+        context.scale(ratio, ratio);
+        context.clearRect(0, 0, width, height);
+
+        const byDate = new Map(daily.map(day => [day.date, day]));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const data = Array.from({ length: analyticsRangeDays }, (_, index) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() - analyticsRangeDays + index + 1);
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+            const value = byDate.get(key);
+            return {
+                label: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(date),
+                sessions: Number(value?.sessions) || 0,
+                pageViews: Number(value?.pageViews) || 0
+            };
+        });
+        const maxValue = Math.max(1, ...data.map(day => Math.max(day.sessions, day.pageViews)));
+        const padding = { top: 14, right: 12, bottom: 30, left: 30 };
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+        context.font = "10px DM Sans, sans-serif";
+        context.textBaseline = "middle";
+        for (let tick = 0; tick <= 4; tick += 1) {
+            const y = padding.top + chartHeight * tick / 4;
+            context.strokeStyle = "rgba(210,232,245,.08)";
+            context.beginPath();
+            context.moveTo(padding.left, y);
+            context.lineTo(width - padding.right, y);
+            context.stroke();
+            context.fillStyle = "#8294a1";
+            context.textAlign = "right";
+            context.fillText(String(Math.round(maxValue * (4 - tick) / 4)), padding.left - 7, y);
+        }
+
+        const drawLine = (property, color) => {
+            context.strokeStyle = color;
+            context.lineWidth = 2;
+            context.beginPath();
+            data.forEach((day, index) => {
+                const x = padding.left + (data.length === 1 ? chartWidth / 2 : chartWidth * index / (data.length - 1));
+                const y = padding.top + chartHeight * (1 - day[property] / maxValue);
+                if (index === 0) context.moveTo(x, y);
+                else context.lineTo(x, y);
+            });
+            context.stroke();
+        };
+        drawLine("pageViews", "#bba0ff");
+        drawLine("sessions", "#61dff1");
+        const labelStep = Math.max(1, Math.ceil(data.length / 7));
+        context.fillStyle = "#8294a1";
+        context.textAlign = "center";
+        data.forEach((day, index) => {
+            if (index % labelStep !== 0 && index !== data.length - 1) return;
+            const x = padding.left + (data.length === 1 ? chartWidth / 2 : chartWidth * index / (data.length - 1));
+            context.fillText(day.label, x, height - 12);
+        });
+        return data;
+    };
+
+    const renderAnalytics = () => {
+        const totals = analyticsData.totals;
+        $("#analyticsSessions").textContent = Number(totals.sessions || 0).toLocaleString("en-IN");
+        $("#analyticsPageViews").textContent = Number(totals.pageViews || 0).toLocaleString("en-IN");
+        $("#analyticsClicks").textContent = Number(totals.linkClicks || 0).toLocaleString("en-IN");
+        $("#analyticsSearchVisits").textContent = Number(totals.searchReferrals || 0).toLocaleString("en-IN");
+        renderAnalyticsList($("#topLinkClicks"), analyticsData.topLinks || [], targetTitle);
+        renderAnalyticsList($("#topPages"), analyticsData.topPages || [], pageTitle);
+        renderAnalyticsList($("#trafficSources"), analyticsData.trafficSources || [], sourceTitle);
+        drawTrafficChart(analyticsData.daily || []);
+        $("#analyticsDataStatus").textContent = `Loaded analytics for the last ${analyticsRangeDays} days.`;
+    };
+
+    const loadAnalytics = async () => {
+        if (!currentUser) return;
+        analyticsRangeDays = Number($("#analyticsRange").value);
+        $("#analyticsSessions").textContent = "…";
+        $("#analyticsPageViews").textContent = "…";
+        $("#analyticsClicks").textContent = "…";
+        $("#analyticsSearchVisits").textContent = "…";
+        $("#analyticsDataStatus").textContent = "Loading analytics...";
+        $("#generateReport").disabled = true;
+        try {
+            analyticsData = await readAnalytics(analyticsRangeDays);
+            renderAnalytics();
+            $("#generateReport").disabled = false;
+        } catch (error) {
+            console.error("Unable to load SHAIL analytics from the admin service.", error);
+            $("#analyticsDataStatus").textContent = "Analytics could not be loaded. Check the dashboard service and your connection, then retry.";
+            ["#analyticsSessions", "#analyticsPageViews", "#analyticsClicks", "#analyticsSearchVisits"].forEach(selector => {
+                $(selector).textContent = "—";
+            });
+            ["#topLinkClicks", "#topPages", "#trafficSources"].forEach(selector => {
+                $(selector).innerHTML = `<p class="muted-empty">Analytics data is unavailable.</p>`;
+            });
+            toast(error.message || "Could not load analytics. Check that the service is configured.", true);
+        }
+    };
+
+    const generateAnalyticsReport = async () => {
+        const button = $("#generateReport");
+        const status = $("#reportStatus");
+        const output = $("#reportOutput");
+        button.disabled = true;
+        output.hidden = true;
+        status.textContent = "Gemini is reviewing the selected analytics period...";
+        try {
+            if (!analyticsData) throw new Error("Load analytics before generating a report.");
+            const result = await generateReport(analyticsData);
+            if (typeof result.report !== "string" || !result.report.trim()) {
+                throw new Error("Gemini returned an empty report. Please try again.");
+            }
+            output.textContent = result.report;
+            output.hidden = false;
+            status.textContent = "Report generated from the analytics data shown above.";
+        } catch (error) {
+            console.error("Unable to generate the SHAIL Gemini analytics report.", error);
+            status.textContent = error.message || "Gemini report generation failed. Check the Worker settings.";
+            toast(status.textContent, true);
+        } finally {
+            button.disabled = false;
+        }
     };
 
     const renderProductRows = items => {
@@ -376,17 +553,20 @@ const keys = {
             };
         });
         try {
-            await saveSiteDocuments(currentUser, {
+            const nextContent = includeUnmigratedContent({
+                ...siteContent,
                 businessSettings: settings,
                 shopTimings: hours
             });
+            const result = await saveSiteContent(nextContent);
+            siteContent = nextContent;
+            siteContent = nextContent;
             if (!writeLocalJson(keys.settings, settings) || !writeLocalJson(keys.hours, hours)) return;
-            knownCloudDocuments.add("businessSettings");
-            knownCloudDocuments.add("shopTimings");
-            updateImportButton();
+            localStorage.setItem("shail_content_migrated", "true");
+            $("#syncStatus").textContent = result.message || "Changes saved to GitHub.";
         } catch (error) {
-            console.error("Unable to save SHAIL settings in Firestore.", error);
-            toast(explainCloudError(error), true);
+            console.error("Unable to save SHAIL settings through the admin service.", error);
+            toast(error.message || "Settings could not be saved.", true);
             return;
         }
         toast("Website settings saved.");
@@ -398,7 +578,7 @@ const keys = {
     const showLogin = message => {
         $("#loginScreen").hidden = false;
         const shell = $(".admin-shell");
-        if (shell.contains(document.activeElement)) $("#loginForm").elements.email.focus();
+        if (shell.contains(document.activeElement)) $("#loginForm").elements.password.focus();
         shell.hidden = true;
         shell.setAttribute("aria-hidden", "true");
         if (message) setLoginError(message);
@@ -414,111 +594,94 @@ const keys = {
     const updateImportButton = () => {
         const hasLegacyData = Object.keys(documentIds).some(storageKey => {
             const documentId = documentIds[storageKey];
-            return !knownCloudDocuments.has(documentId) && localStorage.getItem(storageKey) !== null;
+            const saved = localStorage.getItem(storageKey);
+            return saved !== null && saved !== JSON.stringify(siteContent[documentId]);
         });
         $("#importLegacyData").hidden = !hasLegacyData;
     };
 
-    const applyCloudDocuments = documents => {
-        const latestIds = new Set(Object.keys(documents));
+    const applySiteContent = documents => {
+        const migrated = localStorage.getItem("shail_content_migrated") === "true";
+        siteContent = {
+            products: Array.isArray(documents.products) ? documents.products : [],
+            inventory: Array.isArray(documents.inventory) ? documents.inventory : [],
+            gallery: Array.isArray(documents.gallery) ? documents.gallery : [],
+            businessSettings: documents.businessSettings && typeof documents.businessSettings === "object"
+                ? documents.businessSettings : {},
+            shopTimings: documents.shopTimings && typeof documents.shopTimings === "object"
+                ? documents.shopTimings : {}
+        };
         Object.entries(documentIds).forEach(([storageKey, documentId]) => {
-            if (Object.prototype.hasOwnProperty.call(documents, documentId)) {
-                writeLocalJson(storageKey, documents[documentId]);
-            } else if (knownCloudDocuments.has(documentId)) {
-                localStorage.removeItem(storageKey);
-            }
+            const saved = localStorage.getItem(storageKey);
+            const serverValue = siteContent[documentId];
+            const hasExistingLocalContent = !migrated && saved !== null
+                && ((Array.isArray(serverValue) && serverValue.length === 0)
+                    || (serverValue && typeof serverValue === "object" && !Array.isArray(serverValue)
+                        && Object.keys(serverValue).length === 0));
+            if (!hasExistingLocalContent) writeLocalJson(storageKey, serverValue);
         });
-        knownCloudDocuments = latestIds;
         updateImportButton();
     };
 
     const importLegacyData = async () => {
-        const documents = {};
+        const nextContent = { ...siteContent };
+        let importedCount = 0;
         Object.entries(documentIds).forEach(([storageKey, documentId]) => {
-            if (knownCloudDocuments.has(documentId)) return;
             const saved = localStorage.getItem(storageKey);
             if (saved === null) return;
             try {
-                documents[documentId] = JSON.parse(saved);
+                nextContent[documentId] = JSON.parse(saved);
+                importedCount += 1;
             } catch (error) {
                 console.error(`Unable to import invalid browser data for ${storageKey}.`, error);
                 toast("An existing browser data item is invalid. It was skipped; correct it before importing.", true);
             }
         });
 
-        const names = Object.keys(documents);
-        if (!names.length) {
-            toast("There is no unimported browser data to migrate.", true);
+        if (!importedCount) {
+            toast("There is no saved browser content to import.", true);
             updateImportButton();
             return;
         }
-        if (!window.confirm(`Import ${names.length} existing data section${names.length === 1 ? "" : "s"} from this browser to Firebase? Existing Firebase sections will not be overwritten.`)) return;
+        if (!window.confirm(`Import ${importedCount} saved section${importedCount === 1 ? "" : "s"} from this browser and publish them to the live website?`)) return;
 
         try {
-            await saveSiteDocuments(currentUser, documents);
-            applyCloudDocuments(await readSiteData(currentUser));
+            const result = await saveSiteContent(nextContent);
+            applySiteContent(nextContent);
+            localStorage.setItem("shail_content_migrated", "true");
             renderAll();
             if (activeViewName() === "settings") renderSettings();
-            toast("Existing browser data was copied to Firebase.");
+            $("#syncStatus").textContent = result.message || "Changes saved to GitHub.";
+            toast("Saved browser content was published.");
         } catch (error) {
-            console.error("Unable to import existing browser data to Firebase.", error);
-            toast("Data import failed. Check your connection and Firestore security rules.", true);
+            console.error("Unable to import existing browser content.", error);
+            toast(error.message || "Import failed. Check the dashboard service and try again.", true);
         }
     };
 
-    const startAdmin = async user => {
-        if (!isAdminUser(user)) {
-            currentUser = null;
-            const message = "This account is not authorized for the SHAIL dashboard.";
-            authNotice = message;
-            try {
-                await signOutAdmin();
-            } catch (error) {
-                console.error("Unable to sign out the unauthorized Firebase account.", error);
-            }
-            showLogin(message);
-            authNotice = "";
-            return;
-        }
-        currentUser = user;
+    const startAdmin = async () => {
+        currentUser = true;
         try {
-            const documents = await readSiteData(user);
-            applyCloudDocuments(documents);
+            const { content } = await readSiteContent();
+            if (!content || typeof content !== "object" || Array.isArray(content)) {
+                throw new Error("The dashboard returned invalid website content.");
+            }
+            applySiteContent(content);
             renderAll();
             showDashboard();
-            $("#syncStatus").textContent = "Connected. Changes save to Firebase and appear on the public website.";
-            if (stopWatchingData) stopWatchingData();
-            stopWatchingData = watchPublicSiteData(updated => {
-                if (!currentUser || currentUser.uid !== user.uid) return;
-                applyCloudDocuments(updated);
-                renderAll();
-                if (activeViewName() === "settings") renderSettings();
-            }, error => {
-                console.error("Lost the live Firebase data connection.", error);
-                $("#syncStatus").textContent = "Live updates disconnected. Refresh the page to reconnect.";
-                $("#syncStatusTitle").textContent = "Connection issue:";
-                $(".local-notice").classList.add("error");
-                toast("Live Firebase updates disconnected.", true);
-            });
+            $("#syncStatus").textContent = "Connected. Changes publish through GitHub Pages after the commit is deployed.";
         } catch (error) {
-            console.error("Unable to load SHAIL data from Firestore.", error);
+            console.error("Unable to load SHAIL website content from the admin service.", error);
             currentUser = null;
-            const message = "Could not access the shared data. Check that Firestore is created and its security rules contain your admin UID.";
-            authNotice = message;
-            try {
-                await signOutAdmin();
-            } catch (signOutError) {
-                console.error("Unable to sign out after the Firestore access error.", signOutError);
-            }
-            showLogin(message);
-            authNotice = "";
+            clearAdminSession();
+            showLogin(error.message || "Could not load website content. Check the dashboard service.");
         }
     };
 
     $("#loginForm").addEventListener("submit", async event => {
         event.preventDefault();
-        if (!isConfigured()) {
-            setLoginError("Firebase is not configured. Complete FIREBASE_NETLIFY_SETUP.md, then reload this page.");
+        if (!isApiConfigured()) {
+            setLoginError("The dashboard service is not configured. Follow ADMIN_DASHBOARD_SETUP.md, then reload.");
             return;
         }
         const form = event.currentTarget;
@@ -526,45 +689,30 @@ const keys = {
         button.disabled = true;
         setLoginError("");
         try {
-            await signIn(String(form.elements.email.value).trim(), form.elements.password.value);
+            await signInAdmin(form.elements.password.value);
+            form.reset();
+            await startAdmin();
         } catch (error) {
             console.error("SHAIL administrator sign-in failed.", error);
-            setLoginError(error.code === "auth/too-many-requests"
-                ? "Too many attempts. Wait a while before trying again."
-                : "Sign-in failed. Check your email, password, Firebase Auth settings, and connection.");
+            setLoginError(error.message || "Sign-in failed. Check the administrator password and dashboard service.");
         } finally {
             button.disabled = false;
         }
     });
 
-    $("#resetPassword").addEventListener("click", async () => {
-        const email = String($("#loginForm").elements.email.value || "").trim();
-        if (!email) {
-            setLoginError("Enter your administrator email first, then choose Forgot password.");
-            $("#loginForm").elements.email.focus();
-            return;
-        }
-        try {
-            await resetAdminPassword(email);
-            setLoginError("If this email is registered, Firebase will send a password reset link.");
-        } catch (error) {
-            console.error("Unable to request a Firebase password reset.", error);
-            setLoginError("Could not request a password reset. Check Firebase Auth and your connection.");
-        }
-    });
-
     $("#signOutButton").addEventListener("click", async () => {
         try {
-            if (stopWatchingData) stopWatchingData();
-            stopWatchingData = null;
             currentUser = null;
             await signOutAdmin();
+            showLogin("");
         } catch (error) {
             console.error("Unable to sign out of SHAIL admin.", error);
-            toast("Sign-out failed. Reload the page and try again.", true);
+            toast("Could not clear the local admin session.", true);
         }
     });
     $("#importLegacyData").addEventListener("click", importLegacyData);
+    $("#analyticsRange").addEventListener("change", loadAnalytics);
+    $("#generateReport").addEventListener("click", generateAnalyticsReport);
 
     document.addEventListener("click", event => {
         const nav = event.target.closest("[data-view]");
@@ -609,25 +757,11 @@ const keys = {
     $$("[data-view]").forEach(button => button.addEventListener("click", () => {
         if (button.dataset.view === "settings") renderSettings();
     }));
-    if (!isConfigured()) {
-        showLogin("Firebase setup is incomplete. Follow FIREBASE_NETLIFY_SETUP.md, update js/firebase-config.js, then reload.");
+    if (!isApiConfigured()) {
+        showLogin("Dashboard service setup is incomplete. Follow ADMIN_DASHBOARD_SETUP.md and reload.");
+    } else if (hasAdminSession()) {
+        startAdmin();
     } else {
-        try {
-            initializeFirebase();
-            observeAuth(user => {
-                if (user) {
-                    startAdmin(user);
-                } else {
-                    currentUser = null;
-                    if (stopWatchingData) stopWatchingData();
-                    stopWatchingData = null;
-                    showLogin(authNotice);
-                    authNotice = "";
-                }
-            });
-        } catch (error) {
-            console.error("Unable to initialize Firebase for the SHAIL dashboard.", error);
-            showLogin("Firebase could not start. Check the project configuration and internet connection.");
-        }
+        showLogin("");
     }
 })();
