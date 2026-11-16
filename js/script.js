@@ -601,19 +601,6 @@ if (preloader) {
 
 
     /* =====================================================
-       12. ADMIN NAVIGATION
-       ===================================================== */
-
-    const mobileAdminButton = $("#mobileAdminButton");
-
-    if (mobileAdminButton) {
-        mobileAdminButton.addEventListener("click", () => {
-            setMobileNavigationOpen(false);
-        });
-    }
-
-
-    /* =====================================================
        14. WHATSAPP ORDER SYSTEM
        ===================================================== */
 
@@ -799,8 +786,6 @@ Thank you.
             navShowcase: "Showcase",
             navAbout: "About",
             navContact: "Contact",
-            admin: "Admin",
-            adminPanel: "Admin Panel",
             heroEyebrow: "PRECISION • DESIGN • CRAFT",
             heroTitle: `<span class="hero-title-small">BUILDING</span><span class="hero-title-main"><span class="metal-text">BEAUTIFUL</span></span><span class="hero-title-main"><span class="glass-text">SPACES.</span></span>`,
             heroDescription: "Premium aluminium and glass fabrication, custom architectural solutions and a complete aquatic world — designed with precision, creativity and craftsmanship.",
@@ -827,8 +812,6 @@ Thank you.
             navShowcase: "शोकेस",
             navAbout: "हमारे बारे में",
             navContact: "संपर्क",
-            admin: "एडमिन",
-            adminPanel: "एडमिन पैनल",
             heroEyebrow: "सटीकता • डिज़ाइन • शिल्प",
             heroTitle: `<span class="hero-title-small">इमारतें</span><span class="hero-title-main"><span class="metal-text">सुंदर</span></span><span class="hero-title-main"><span class="glass-text">अंतरिक्ष.</span></span>`,
             heroDescription: "प्रीमियम एल्यूमीनियम और गिलास निर्माण, कस्टम आर्किटेक्चरल समाधान और एक संपूर्ण जलीय दुनिया — सटीकता, रचनात्मकता और शिल्प कौशल के साथ तैयार।",
@@ -1101,16 +1084,6 @@ Thank you.
                 setElementText(element, dict[key]);
             }
         });
-
-        const adminButtonText = document.querySelector(".admin-button span");
-        if (adminButtonText) {
-            adminButtonText.textContent = dict.admin;
-        }
-
-        const mobileAdminButton = document.getElementById("mobileAdminButton");
-        if (mobileAdminButton) {
-            mobileAdminButton.innerHTML = '<i class="fa-solid fa-user-shield"></i> ' + dict.adminPanel;
-        }
 
         const heroEyebrow = document.querySelector(".hero-eyebrow span:last-child");
         if (heroEyebrow) {
