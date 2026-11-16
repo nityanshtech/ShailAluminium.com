@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#07111a">
+    <meta name="robots" content="noindex, nofollow, noarchive">
     <title>Admin Dashboard | SHAIL</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="./css/admin.css">
+    <link rel="stylesheet" href="./css/admin.css?v=2">
 </head>
 <body>
     <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -20,13 +21,11 @@
             </a>
             <span class="eyebrow">SECURE ADMIN ACCESS</span>
             <h1 id="loginTitle">Sign in to your dashboard</h1>
-            <p>Use the administrator account configured for your Firebase project.</p>
-            <label class="editor-field">Email address<input name="email" type="email" autocomplete="username" required placeholder="admin@example.com"></label>
-            <label class="editor-field">Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label>
+            <p>This private dashboard is separate from the public website. Sign in with your administrator password.</p>
+            <label class="editor-field">Administrator password<input name="password" type="password" autocomplete="current-password" required placeholder="Your administrator password"></label>
             <button class="button button-primary login-submit" type="submit"><i class="fa-solid fa-lock"></i> Sign in securely</button>
-            <button class="login-reset" id="resetPassword" type="button">Forgot password?</button>
             <p class="login-error" id="loginError" role="alert"></p>
-            <p class="login-help">Admin access is controlled by Firebase Authentication and Firestore security rules. <a href="./FIREBASE_NETLIFY_SETUP.md" target="_blank" rel="noopener">Open the Firebase and Netlify setup guide</a>.</p>
+            <p class="login-help">Admin access and the Gemini key are protected by the separate dashboard service. <a href="./ADMIN_DASHBOARD_SETUP.md" target="_blank" rel="noopener">Open the dashboard setup guide</a>.</p>
         </form>
     </section>
     <div class="admin-shell" hidden aria-hidden="true">
@@ -40,6 +39,9 @@
             <nav class="sidebar-nav" aria-label="Dashboard sections">
                 <button class="nav-item active" type="button" data-view="overview">
                     <i class="fa-solid fa-chart-pie"></i><span>Overview</span>
+                </button>
+                <button class="nav-item" type="button" data-view="analytics">
+                    <i class="fa-solid fa-chart-line"></i><span>Analytics & reports</span>
                 </button>
                 <button class="nav-item" type="button" data-view="products">
                     <i class="fa-solid fa-box-open"></i><span>Products</span><span class="nav-count" id="productNavCount">0</span>
@@ -56,7 +58,7 @@
             </nav>
 
             <div class="sidebar-bottom">
-                <div class="storage-status"><span></span><div><strong>Firebase database</strong><small>Shared with your live website</small></div></div>
+                <div class="storage-status"><span></span><div><strong>Dashboard service</strong><small>GitHub Pages publishing</small></div></div>
                 <a class="back-link" href="./index.html"><i class="fa-solid fa-arrow-left"></i> Back to website</a>
             </div>
         </aside>
@@ -74,7 +76,7 @@
             <div class="page-content">
                 <div class="local-notice">
                     <i class="fa-solid fa-circle-info"></i>
-                    <div><p><strong id="syncStatusTitle">Firebase connection:</strong> <span id="syncStatus">Connecting to your shared website data...</span></p><button class="text-button import-button" id="importLegacyData" type="button" hidden>Import existing data from this browser</button></div>
+                    <div><p><strong id="syncStatusTitle">Dashboard service:</strong> <span id="syncStatus">Connecting to the admin service...</span></p><button class="text-button import-button" id="importLegacyData" type="button" hidden>Import saved content from this browser</button></div>
                 </div>
 
                 <section class="view-panel active" id="view-overview" aria-labelledby="pageTitle">
@@ -103,6 +105,53 @@
                             <div class="low-stock-list" id="lowStockPreview"></div>
                         </article>
                     </div>
+                </section>
+
+                <section class="view-panel" id="view-analytics" aria-labelledby="analyticsTitle">
+                    <div class="page-heading analytics-heading">
+                        <div><span class="eyebrow">TRAFFIC & ENGAGEMENT</span><h1 id="analyticsTitle">Website analytics</h1><p>Understand visits and the links customers use on your website.</p></div>
+                        <label class="range-control">Report period
+                            <select id="analyticsRange" aria-label="Analytics report period">
+                                <option value="7">Last 7 days</option>
+                                <option value="30" selected>Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="analytics-notice">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <p>Analytics start after tracking is deployed. Sessions are anonymous tab sessions; search referrals show visits from search engines, not keyword searches or Google search impressions. Connect Google Search Console to see those.</p>
+                    </div>
+                    <div class="stats-grid analytics-stats">
+                        <article class="stat-card"><span class="stat-icon cyan"><i class="fa-solid fa-users"></i></span><div><span>Sessions</span><strong id="analyticsSessions">—</strong><small>Anonymous tab sessions</small></div></article>
+                        <article class="stat-card"><span class="stat-icon violet"><i class="fa-regular fa-eye"></i></span><div><span>Page views</span><strong id="analyticsPageViews">—</strong><small>Including page-section navigation</small></div></article>
+                        <article class="stat-card"><span class="stat-icon amber"><i class="fa-solid fa-arrow-pointer"></i></span><div><span>Link clicks</span><strong id="analyticsClicks">—</strong><small>Phone, WhatsApp, map, and other links</small></div></article>
+                        <article class="stat-card"><span class="stat-icon green"><i class="fa-brands fa-google"></i></span><div><span>Search referrals</span><strong id="analyticsSearchVisits">—</strong><small>Sessions referred by search engines</small></div></article>
+                    </div>
+                    <div class="analytics-grid">
+                        <article class="content-card analytics-chart-card">
+                            <div class="card-heading"><div><h2>Traffic over time</h2><p>Daily sessions and page views</p></div><span class="analytics-legend"><i class="sessions-dot"></i> Sessions <i class="views-dot"></i> Page views</span></div>
+                            <div class="chart-wrap"><canvas id="trafficChart" role="img" aria-label="Daily website sessions and page views chart"></canvas></div>
+                        </article>
+                        <article class="content-card analytics-breakdown">
+                            <div class="card-heading"><div><h2>Top link clicks</h2><p>Most-used contact and navigation links</p></div></div>
+                            <div class="analytics-list" id="topLinkClicks"><p class="muted-empty">Loading analytics...</p></div>
+                        </article>
+                        <article class="content-card analytics-breakdown">
+                            <div class="card-heading"><div><h2>Popular pages</h2><p>Sections viewed during the selected period</p></div></div>
+                            <div class="analytics-list" id="topPages"><p class="muted-empty">Loading analytics...</p></div>
+                        </article>
+                        <article class="content-card analytics-breakdown">
+                            <div class="card-heading"><div><h2>Traffic sources</h2><p>Where visitor sessions came from</p></div></div>
+                            <div class="analytics-list" id="trafficSources"><p class="muted-empty">Loading analytics...</p></div>
+                        </article>
+                    </div>
+                    <article class="content-card report-card">
+                        <div class="card-heading"><div><span class="eyebrow">GEMINI BUSINESS INSIGHTS</span><h2>AI performance report</h2><p>Get a plain-language summary and practical recommendations from this analytics period.</p></div><button class="button button-primary" id="generateReport" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate report</button></div>
+                        <p class="report-status" id="reportStatus" role="status" aria-live="polite">Gemini reports are generated on request using a private server-side API key.</p>
+                        <p class="analytics-data-status" id="analyticsDataStatus" role="status" aria-live="polite">Analytics will appear after the tracking script is deployed.</p>
+                        <div class="report-output" id="reportOutput" hidden></div>
+                    </article>
                 </section>
 
                 <section class="view-panel" id="view-products">
@@ -152,6 +201,6 @@
         </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./js/admin.js"></script>
+    <script type="module" src="./js/admin.js?v=2"></script>
 </body>
 </html>
