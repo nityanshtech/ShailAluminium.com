@@ -1,6 +1,3 @@
-import { firebaseConfigured } from "./firebase-config.js";
-import { readPublicSiteData, watchPublicSiteData } from "./firebase.js";
-
 const localKeys = {
     products: "shail_admin_products",
     inventory: "shail_aquarium_items",
@@ -9,44 +6,44 @@ const localKeys = {
     shopTimings: "shail_shop_timings"
 };
 
-function applyRemoteData(documents, { preserveMissing = true } = {}) {
-    try {
-        Object.entries(localKeys).forEach(([documentId, storageKey]) => {
-            if (!Object.prototype.hasOwnProperty.call(documents, documentId)) {
-                if (!preserveMissing) localStorage.removeItem(storageKey);
-                return;
-            }
-            localStorage.setItem(storageKey, JSON.stringify(documents[documentId]));
-        });
-    } catch (error) {
-        console.error("Unable to cache public SHAIL website data in this browser.", error);
-        throw error;
-    }
+function applyPublicData(documents) {
+    const migrated = localStorage.getItem("shail_content_migrated") === "true";
+    Object.entries(localKeys).forEach(([documentId, storageKey]) => {
+        if (Object.prototype.hasOwnProperty.call(documents, documentId)) {
+            const value = documents[documentId];
+            const saved = localStorage.getItem(storageKey);
+            const emptyServerValue = Array.isArray(value)
+                ? value.length === 0
+                : value && typeof value === "object" && Object.keys(value).length === 0;
+            if (!migrated && saved !== null && emptyServerValue) return;
+            localStorage.setItem(storageKey, JSON.stringify(value));
+        }
+    });
+    window.dispatchEvent(new CustomEvent("shail:data-updated"));
 }
 
-function notifyPublicSyncError(error) {
-    console.error("Unable to sync SHAIL website data from Firebase.", error);
-    const notification = document.querySelector(".site-notification");
+async function loadPublicData() {
+    const response = await fetch(`./site-data.json?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+        throw new Error(`Website content could not be loaded (${response.status}).`);
+    }
+    const data = await response.json();
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("The published site-data.json file has an invalid format.");
+    }
+    applyPublicData(data);
+}
+
+window.__shailPublicDataReady = loadPublicData().catch(error => {
+    console.error("Unable to load public SHAIL website content.", error);
+    const notification = document.getElementById("siteNotification");
     const message = document.getElementById("notificationText");
     if (notification && message) {
-        message.textContent = "Live website data could not be loaded. Please try again later.";
+        message.textContent = "Website content could not be loaded. Please try again later.";
         notification.classList.add("show");
     }
-}
+});
 
-window.__shailPublicDataReady = (async () => {
-    if (!firebaseConfigured()) {
-        console.warn("SHAIL live data is not connected yet. Follow FIREBASE_NETLIFY_SETUP.md to configure Firebase.");
-        return;
-    }
-
-    try {
-        applyRemoteData(await readPublicSiteData());
-        watchPublicSiteData(documents => {
-            applyRemoteData(documents);
-            window.dispatchEvent(new CustomEvent("shail:data-updated"));
-        }, notifyPublicSyncError);
-    } catch (error) {
-        notifyPublicSyncError(error);
-    }
-})();
+window.setInterval(() => {
+    loadPublicData().catch(error => console.error("Unable to refresh SHAIL website content.", error));
+}, 60000);
