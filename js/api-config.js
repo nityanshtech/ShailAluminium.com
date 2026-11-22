@@ -5,7 +5,7 @@ const apiBaseUrl = API_BASE_URL.replace(/\/+$/, "");
 
 export function isApiConfigured() {
     try {
-        return new URL(API_BASE_URL).hostname !== "REPLACE_WITH_YOUR_WORKER.workers.dev";
+        return new URL(API_BASE_URL).hostname !== "https://shail-admin-api.shail-dashbord.workers.dev";
     } catch {
         return false;
     }
