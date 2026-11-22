@@ -623,6 +623,51 @@ if (preloader) {
             );
         };
 
+    const feedbackModal = $("#feedbackModal");
+    const feedbackOpen = $("#feedbackOpen");
+    const closeFeedback = () => {
+        if (!feedbackModal) return;
+        feedbackModal.classList.remove("active");
+        feedbackModal.setAttribute("aria-hidden", "true");
+        feedbackOpen?.focus();
+    };
+
+    feedbackOpen?.addEventListener("click", () => {
+        feedbackModal.classList.add("active");
+        feedbackModal.setAttribute("aria-hidden", "false");
+        $("#feedbackMessage")?.focus();
+    });
+
+    $("#closeFeedback")?.addEventListener("click", closeFeedback);
+    $("#cancelFeedback")?.addEventListener("click", closeFeedback);
+    feedbackModal?.addEventListener("click", event => {
+        if (event.target === feedbackModal) closeFeedback();
+    });
+
+    $("#feedbackForm")?.addEventListener("submit", event => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const rating = String(formData.get("rating") || "");
+        const feedback = String(formData.get("message") || "").trim();
+        if (!rating || !feedback) return;
+
+        const message = [
+            "Hello SHAIL ALLUMINIUM AND GLASS FABRICANTS,",
+            "",
+            "I would like to share feedback about your website.",
+            `Rating: ${rating}`,
+            "",
+            "Feedback:",
+            feedback,
+            "",
+            "Thank you."
+        ].join("\n");
+
+        sendWhatsAppMessage(message);
+        event.currentTarget.reset();
+        closeFeedback();
+    });
+
 
     /* =====================================================
        15. PRODUCT ENQUIRY BUTTONS
@@ -755,6 +800,9 @@ Thank you.
             }
 
             closeViewer();
+            if (feedbackModal?.classList.contains("active")) {
+                closeFeedback();
+            }
             if (mobileNavigation) {
                 setMobileNavigationOpen(false);
             }
