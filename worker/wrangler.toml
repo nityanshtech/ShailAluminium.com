@@ -15,5 +15,5 @@ crons = ["0 4 * * *"]
 CONTENT_REPO = "nityanshtech/ShailAluminium.com"
 CONTENT_BRANCH = "main"
 CONTENT_PATH = "site-data.json"
-ALLOWED_ORIGINS = "https://nityanshtech.github.io/ShailAluminium.com/"
+ALLOWED_ORIGINS = "https://nityanshtech.github.io"
 GEMINI_MODEL = "gemini-2.5-flash"
