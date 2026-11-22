@@ -1,4 +1,4 @@
-export const API_BASE_URL = "https://REPLACE_WITH_YOUR_WORKER.workers.dev";
+export const API_BASE_URL = "https://shail-admin-api.shail-dashbord.workers.dev";
 
 const sessionKey = "shail_admin_session";
 const apiBaseUrl = API_BASE_URL.replace(/\/+$/, "");
@@ -64,6 +64,11 @@ export const readSiteContent = () => request("/api/content");
 export const saveSiteContent = content => request("/api/content", { method: "PUT", body: content });
 export const readAnalytics = days => request(`/api/analytics?days=${encodeURIComponent(days)}`);
 export const generateReport = data => request("/api/report", { method: "POST", body: data });
+export const askShail = messages => request("/api/chat", {
+    method: "POST",
+    body: { messages },
+    authenticated: false
+});
 
 export async function recordAnalyticsEvent(event) {
     if (!isApiConfigured()) return;
