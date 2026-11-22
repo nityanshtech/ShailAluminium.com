@@ -25,7 +25,7 @@
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
     <!-- MAIN WEBSITE CSS -->
-    <link rel="stylesheet" href="./css/style.css?v=6">
+    <link rel="stylesheet" href="./css/style.css?v=9">
 </head>
 
 <body>
@@ -166,19 +166,6 @@
                 </button>
 
 
-                <a id="adminButton"
-                   class="admin-button"
-                   href="./admin.html">
-
-                    <i class="fa-solid fa-user-shield"></i>
-
-                    <span>
-                        Admin
-                    </span>
-
-                </a>
-
-
                 <button id="mobileMenuButton"
                         class="mobile-menu-button"
                         type="button"
@@ -235,15 +222,6 @@
                 <a href="#contact" class="mobile-nav-link">
                     <i class="fa-solid fa-phone"></i>
                     Contact
-                </a>
-
-                <a id="mobileAdminButton"
-                   href="./admin.html"
-                   class="mobile-admin-button">
-
-                    <i class="fa-solid fa-user-shield"></i>
-                    Admin Panel
-
                 </a>
 
             </div>
@@ -1493,11 +1471,88 @@
                 </span>
 
             </div>
+            <p class="analytics-privacy-note">
+                When enabled, anonymous tab-session counts and link types help us improve the website. No names or contact details are collected.
+                <button id="analyticsOptOut" type="button">Opt out</button>
+                <span id="analyticsOptOutStatus" role="status" aria-live="polite"></span>
+            </p>
 
         </div>
 
     </footer>
 
+    <button class="ai-chat-launch" id="aiChatOpen" type="button"
+            aria-haspopup="dialog" aria-controls="aiChatBackdrop">
+        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+        <span>Ask SHAIL AI</span>
+    </button>
+
+    <div class="ai-chat-backdrop" id="aiChatBackdrop" aria-hidden="true">
+        <section class="ai-chat-dialog" role="dialog" aria-modal="true" aria-labelledby="aiChatTitle">
+            <header class="ai-chat-header">
+                <span class="ai-chat-avatar"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></span>
+                <div>
+                    <h2 id="aiChatTitle">Ask SHAIL AI</h2>
+                    <p>Questions about our business or website</p>
+                </div>
+                <button class="ai-chat-close" id="aiChatClose" type="button" aria-label="Close chat">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="ai-chat-messages" id="aiChatMessages" aria-live="polite" aria-relevant="additions">
+                <article class="ai-chat-message model">
+                    <span class="ai-chat-message-label">SHAIL AI</span>
+                    <p>Hello! Ask me about SHAIL’s aluminium and glass work, aquariums, products, or how to contact us.</p>
+                </article>
+            </div>
+            <p class="ai-chat-status" id="aiChatStatus" role="status" aria-live="polite"></p>
+            <form class="ai-chat-form" id="aiChatForm">
+                <label class="ai-chat-sr-only" for="aiChatInput">Your question</label>
+                <textarea id="aiChatInput" name="question" maxlength="700" rows="2" required
+                          placeholder="Ask a question about SHAIL..."></textarea>
+                <button id="aiChatSend" type="submit" aria-label="Send question">
+                    <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                </button>
+            </form>
+            <p class="ai-chat-disclaimer">AI answers may be inaccurate. Don’t share private information. Your question is sent to Google Gemini to generate a reply; SHAIL does not save chat messages.</p>
+        </section>
+    </div>
+
+    <button class="feedback-launch" id="feedbackOpen" type="button"
+            aria-haspopup="dialog" aria-controls="feedbackModal">
+        <i class="fa-regular fa-comment-dots" aria-hidden="true"></i>
+        <span>Feedback</span>
+    </button>
+
+    <div class="feedback-backdrop" id="feedbackModal" aria-hidden="true">
+        <section class="feedback-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+            <button class="feedback-close" id="closeFeedback" type="button" aria-label="Close feedback form">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+            <span class="feedback-eyebrow">WE VALUE YOUR THOUGHTS</span>
+            <h2 id="feedbackTitle">Share your feedback</h2>
+            <p class="feedback-intro">Tell us about your experience with SHAIL. Your message will open in WhatsApp, where you can review it and choose whether to send.</p>
+            <form id="feedbackForm">
+                <fieldset class="feedback-rating">
+                    <legend>How was your experience?</legend>
+                    <div class="feedback-rating-options">
+                        <label><input type="radio" name="rating" value="1 - Poor" required aria-label="1 star, poor"><span><i class="fa-solid fa-star" aria-hidden="true"></i><small>Poor</small></span></label>
+                        <label><input type="radio" name="rating" value="2 - Fair" aria-label="2 stars, fair"><span><i class="fa-solid fa-star" aria-hidden="true"></i><small>Fair</small></span></label>
+                        <label><input type="radio" name="rating" value="3 - Okay" aria-label="3 stars, okay"><span><i class="fa-solid fa-star" aria-hidden="true"></i><small>Okay</small></span></label>
+                        <label><input type="radio" name="rating" value="4 - Good" aria-label="4 stars, good"><span><i class="fa-solid fa-star" aria-hidden="true"></i><small>Good</small></span></label>
+                        <label><input type="radio" name="rating" value="5 - Great" aria-label="5 stars, great"><span><i class="fa-solid fa-star" aria-hidden="true"></i><small>Great</small></span></label>
+                    </div>
+                </fieldset>
+                <label class="feedback-message-label" for="feedbackMessage">Your feedback</label>
+                <textarea id="feedbackMessage" name="message" maxlength="1000" required
+                          placeholder="What did you like, or what could we improve?" rows="5"></textarea>
+                <div class="feedback-form-footer">
+                    <button class="feedback-cancel" id="cancelFeedback" type="button">Cancel</button>
+                    <button class="feedback-submit" type="submit"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Continue to WhatsApp</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
     <!-- =========================================================
          IMAGE VIEWER
@@ -1563,7 +1618,9 @@
     ========================================================== -->
 
     <script type="module" src="./js/public-data.js"></script>
-    <script src="./js/script.js?v=3"></script>
+    <script type="module" src="./js/analytics.js"></script>
+    <script src="./js/script.js?v=5"></script>
+    <script type="module" src="./js/chat.js?v=1"></script>
 
 </body>
 </html>
