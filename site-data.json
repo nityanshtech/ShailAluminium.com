@@ -1,5 +1,15 @@
 {
-  "products": [],
+  "products": [
+    {
+      "name": "Shail subscription",
+      "category": "Accessories",
+      "price": 99,
+      "description": "Nice for you",
+      "image": "",
+      "id": "shail-1795341500692-d7z8k",
+      "createdAt": "2026-11-22T09:58:20.692Z"
+    }
+  ],
   "inventory": [],
   "gallery": [],
   "businessSettings": {},
