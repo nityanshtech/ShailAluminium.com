@@ -2,6 +2,50 @@
   "products": [],
   "inventory": [],
   "gallery": [],
-  "businessSettings": {},
-  "shopTimings": {}
+  "businessSettings": {
+    "phone": "",
+    "whatsapp": "",
+    "address": ""
+  },
+  "shopTimings": {
+    "enabled": true,
+    "notice": "",
+    "days": {
+      "Monday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Tuesday": {
+        "open": false,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Wednesday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Thursday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Friday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Saturday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      },
+      "Sunday": {
+        "open": true,
+        "from": "09:00",
+        "to": "20:00"
+      }
+    }
+  }
 }
